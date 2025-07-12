@@ -11,7 +11,7 @@ from rag_chain import initialize_rag_chain, ask_question
 
 app = FastAPI()
 
-# Enable CORS so the React frontend (which may run on a different port) can talk to this backend
+# Enabling CORS so the frontend (which may run on a different port) can talk to this backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, restrict to the actual frontend origin
