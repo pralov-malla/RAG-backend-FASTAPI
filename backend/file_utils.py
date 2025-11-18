@@ -1,9 +1,78 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from typing import List
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_chroma.vectorstores import Chroma
+import importlib.util
+
+# Helper to import a module path if available; returns the module object or None
+def _import_if_available(module_path: str):
+    try:
+        spec = importlib.util.find_spec(module_path)
+        if spec is None:
+            return None
+        return importlib.import_module(module_path)
+    except (ModuleNotFoundError, ImportError, ValueError):
+        return None
+
+# Document loaders: prefer langchain_community, then langchain
+_m = _import_if_available("langchain_community.document_loaders")
+if _m is not None:
+    PyPDFLoader = getattr(_m, "PyPDFLoader", None)
+    TextLoader = getattr(_m, "TextLoader", None)
+else:
+    _m = _import_if_available("langchain.document_loaders")
+    if _m is not None:
+        PyPDFLoader = getattr(_m, "PyPDFLoader", None)
+        TextLoader = getattr(_m, "TextLoader", None)
+    else:
+        PyPDFLoader = None
+        TextLoader = None
+
+if PyPDFLoader is None or TextLoader is None:
+    raise RuntimeError(
+        "Could not find document loaders. Install 'langchain-community' package."
+    )
+
+# Text splitter
+_m = _import_if_available("langchain_text_splitters")
+if _m is not None:
+    RecursiveCharacterTextSplitter = getattr(_m, "RecursiveCharacterTextSplitter", None)
+else:
+    _m = _import_if_available("langchain.text_splitter")
+    if _m is not None:
+        RecursiveCharacterTextSplitter = getattr(_m, "RecursiveCharacterTextSplitter", None)
+    else:
+        RecursiveCharacterTextSplitter = None
+
+if RecursiveCharacterTextSplitter is None:
+    raise RuntimeError(
+        "Could not find text splitter. Install 'langchain-text-splitters' package."
+    )
+
+# Embeddings
+_m = _import_if_available("langchain_community.embeddings")
+if _m is not None and hasattr(_m, "HuggingFaceEmbeddings"):
+    HuggingFaceEmbeddings = getattr(_m, "HuggingFaceEmbeddings")
+else:
+    _m = _import_if_available("langchain.embeddings")
+    if _m is not None and hasattr(_m, "HuggingFaceEmbeddings"):
+        HuggingFaceEmbeddings = getattr(_m, "HuggingFaceEmbeddings")
+    else:
+        raise RuntimeError(
+            "Could not find HuggingFaceEmbeddings. Install 'langchain-community'."
+        )
+
+# Vectorstore (Chroma)
+_m = _import_if_available("langchain_community.vectorstores")
+if _m is not None and hasattr(_m, "Chroma"):
+    Chroma = getattr(_m, "Chroma")
+else:
+    _m = _import_if_available("langchain.vectorstores")
+    if _m is not None and hasattr(_m, "Chroma"):
+        Chroma = getattr(_m, "Chroma")
+    else:
+        raise RuntimeError(
+            "Could not find Chroma vectorstore. Install 'langchain-community' and 'chromadb'."
+        )
+
 from pathlib import Path
 import shutil
 
@@ -43,7 +112,7 @@ def process_upload_files(file_paths: List[str]):
     # Split documents into chunks
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
-        chunk_overlap=200
+        chunk_overlap=200,
     )
     split_docs = text_splitter.split_documents(documents)
 
